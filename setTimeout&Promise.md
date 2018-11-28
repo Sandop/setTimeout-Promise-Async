@@ -498,64 +498,112 @@ ES6 将promise写进了语言标准，统一了用法，原生提供了Promise�
 
 是不是有点傻了，怎么又出现了async了，别慌别慌且听我慢慢道来，在说之前还得大家了解async，阮一峰老师对此有详细的介绍，详情[戳这里](http://es6.ruanyifeng.com/#docs/async)
 
-其中这样说到：
-    
+
+### 四、async
+
+async的用法，它作为一个关键字放到函数前面，用于表示函数是一个异步函数，因为async就是异步的意思， 异步函数也就意味着该函数的执行不会阻塞后面代码的执行。
+
+我们先来观察下async的返回值，请看下面的代码：
+
+```javascript
+
+    async function testAsync() {
+        return "hello async";
+    }
+
+    const result = testAsync();
+    console.log(result);
+
+    //输出结果：
+    // Promise { 'hello async' }
+```
+
+看到这里我们知道了，saync输出的是一个promise对象
+
+    async 函数（包含函数语句、函数表达式）会返回一个 Promise 对象，如果在函数中 return 一个直接量，async 会把这个直接量通过 Promise.resolve() 封装成 Promise 对象。
+
+那我们试下没有返回值会是怎么样呢？
+
+```javascript
+
+    async function testAsync() {
+        console.log("hello async");
+    }
+
+    const result = testAsync();
+    console.log(result);
+
+    //输出结果：
+    // hello async
+    // Promise { undefined }
+```
+
+会返回一个为空的promis对象
+
+### 五、await
+
+从字面意思上看await就是等待，await 等待的是一个表达式，这个表达式的返回值可以是一个promise对象也可以是其他值。
+
+注意到 await 不仅仅用于等 Promise 对象，它可以等任意表达式的结果，所以，await 后面实际是可以接普通函数调用或者直接量的。
+
+
+```javascript
+
+    function getSomething() {
+        return "something";
+    }
+
+    async function testAsync() {
+        return Promise.resolve("hello async");
+    }
+
+    async function test() {
+        const v1 = await getSomething();
+        const v2 = await testAsync();
+        console.log(v1, v2);
+    }
+
+    test();
+
+    //输出结果：
+    // something hello async
+```
+await 是个运算符，用于组成表达式，await 表达式的运算结果取决于它等的东西,如果它等到的不是一个 Promise 对象，那 await 表达式的运算结果就是它等到的东西。
+
+
+|内容                |描述|
+|-----------------  |-----------------|
+|语法                |[return_value] = await expression;|
+|表达式（expression） |一个 Promise 对象或者任何要等待的值。|
+|返回值（return_value）|返回 Promise 对象的处理结果。如果等待的不是 Promise 对象，则返回该值本身|    
+
+
+但是当遇到await会怎么执行呢？
+
     async函数完全可以看作多个异步操作，包装成的一个 Promise 对象，而await命令就是内部then命令的语法糖。
     当函数执行的时候，一旦遇到await就会先返回，等到异步操作完成，再接着执行函数体内后面的语句.
 
-先说一下async的用法，它作为一个关键字放到函数前面，用于表示函数是一个异步函数，因为async就是异步的意思， 异步函数也就意味着该函数的执行不会阻塞后面代码的执行。
+即，
 
-在这里我在举一些async/await的栗子，大家感受下
+    当遇到async函数体内的 `await test();`时候，执行test()，然后得到返回值value（可以是promise也可以是其他值），组成`await value;`,若 value是promise对象时候，此时返回的Promise会被放入到任务队列中等待，await会让出线程，跳出 async函数，继续执行后续代码；若 value是其他值，只是不会被添加到任务队列而已，await也会让出线程，跳出 async函数，继续执行后续代码。
 
-```javascript
 
-    async function a() {
-        await console.log(1)
-        console.log(2)
-    }
 
-    async function b() {
-        await　a();
-    }
-
-    b();
-
-    console.log(3)
-
-    //输出结果：
-    // 1 3 2
-```
-
-```javascript
-
-    async function a() {
-        await console.log(1)
-        console.log(2)
-    }
-
-    async function b() {
-        await　a();
-    }
-
-    b();
-
-    setTimeout(function(){console.log(3)},0)
-
-    //输出结果：
-    // 1 2 3
-```
-
-    await不会造成程序阻塞，只是promise的语法糖，可以看看babel编译后async/await, 可以这么理解，async 是多个异步操作的promise对象，await相当于then，代码执行跟你用callback写的代码并没有什么区别，本质上并不是同步代码，只是让你思考代码逻辑的时候能够以同步的思维去思考，即async/await是以同步的思维去写异步的代码，避开回调地狱。
-
-好了，我们分析上面的代码：
+明白了这些，我们分析上面最难的那部分代码：
 
     1.首先执行整体代码，遇到两个saync函数，没有调用所以继续向下执行，所以第一个输出的是："d";
     2.执行到第一个setTimeout时，发现它是宏任务，此时会新建一个setTimeout类型的宏任务队列并派发当前这个setTimeout的回调函数到刚建好的这个宏任务队列中去，并且轮到它执行时要立刻执行;
-    3.async1() async函数调用，执行async函数，第二个输出的是："a";
+    3.遇到async1()， async1函数调用，执行async1函数，第二个输出的是："a";
+    4.然后执行到 await async2()，发现 async2 也是个 async 定义的函数，所以直接执行了“console.log('c')”。所以第三个输出的是："c";
+    5.同时async2返回了一个Promise,请注意：此时返回的Promise会被放入到任务队列中等待，await会让出线程，接下来就会跳出 async1函数，继续往下执行！！！
+    6.执行到 new Promise，前面说过了promise是立即执行的，所以第四个输出的是："x";
+    7.然后执行到 resolve 的时候，resolve这个任务就被放到任务队列中等待，然后跳出Promise继续往下执行，所以第五个输出的是："z";
+    8.现在调用栈空出来了，事件循环就会去任务队列里面取任务继续放到调用栈里面；
+    9.取到的第一个任务，就是前面 async1 放进去的Promise，执行Promise时候，遇到resolve或者reject函数，这次会又被放到任务队列中等待，然后再次跳出 async1函数 继续下一个任务！！！
+    10.接下来取到的下一个任务，就是前面 new Promise 放进去的 resolve回调，执行then，所以第六个输出的是："y";
+    11.调用栈再次空出来了，事件循环就取到了下一个任务,async1 函数中的 async2返回的promise对象的resolve或者reject函数执行，因为 async2 并没有return任何东西，所以这个resolve的参数是undefined；
+    12.此时 await 定义的这个 Promise 已经执行完并且返回了结果，所以可以继续往下执行 async1函数 后面的任务了，那就是“console.log('b')”，所以第七个输出的是："b";
+    13.调用栈再次的空了出来终于执行setTimeout的宏任务，所以第八个输出的是："e"
 
 
-
-https://segmentfault.com/a/1190000015057278
-https://www.cnblogs.com/lpggo/p/8127604.html
-https://segmentfault.com/a/1190000016937985?utm_source=tag-newest
-https://juejin.im/post/5b03e79951882542891913e8
+哇(*@ο@*) 哇～，解决了小伙伴们明白没有，希望大家了解了就再也不怕面试这种题目啦！
